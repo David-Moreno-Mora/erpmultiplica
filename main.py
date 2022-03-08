@@ -1,4 +1,5 @@
 from typing import Optional
+import xmlrpc.client
 
 from fastapi import FastAPI, Header
 from pydantic import BaseModel
@@ -42,3 +43,31 @@ async def create_item(invoice: Invoice):
 @app.get("/items/test/")
 async def read_items(user_agent: Optional[str] = Header(None)):
     return {"User-Agent": user_agent}
+
+@app.post("/invoice")
+def create_invoice():
+    url = 'https://marcomoramultiplica-erp.odoo.com'
+    db = 'marcomoramultiplica-erp-prod-4175354'
+    username = 'admin'
+    password = '2c51131e4bccac3a42bbf4767f00374d9900ae23'
+
+    common = xmlrpc.client.ServerProxy('{}/xmlrpc/2/common'.format(url))
+    version = common.version()
+    uid = common.authenticate(db, username, password, {})
+
+    models = xmlrpc.client.ServerProxy('{}/xmlrpc/2/object'.format(url))
+    items = {
+        'product_id': 1,
+        'quantity': 10,
+        'price_unit': 30,
+    }
+    invoice = {
+        "move_type":"out_invoice",
+        "currency_id":33,
+        "journal_id":1,
+        "state":"draft",
+        "company_id":1,
+        'invoice_line_ids': [(0, 0, items)],
+    }
+    info = models.execute_kw(db, uid, password,'account.move','create',[invoice])
+    return{"id":info}
